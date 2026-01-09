@@ -1,0 +1,22 @@
+Week 1
+Monday Jan 5
+- Scoring the Livability Index out of a score of 100
+  - Housing Price 40%
+  - Tranist Access 10%
+  - Crime Rates 30%
+  - Amenities 20% -> Points of interest (parks, grocery, gyms, clinics)
+
+- Vancouver Crime Data 
+- Transit Data from GTFS
+- Need to find data on housing prices (rent, selling, buying)
+- Potentially remove amentites and add something else
+
+Friday Jan 9
+- Create proper timeline and using Claude to help code, ChatGPT for ideas/help
+- Setup AWS, Databricks, and Snowflake
+
+AWS S3 (Simple Storage Service) is Amazon's cloud service where it stores raw data files before processing them. 
+
+Raw Data → S3 (Bronze) → Databricks (Silver) → Snowflake (Gold)
+
+- Start setting up Terraform for AWS (Review the different Terraform Files)
