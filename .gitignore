@@ -1,1 +1,14 @@
+# AWS Credentials
 aws cred
+
+# Terraform
+terraform.tfvars
+*.tfvars
+
+# Terraform state (also important)
+*.tfstate
+*.tfstate.backup
+.terraform/
+
+snowflake_key.p8
+snowflake_key.pub

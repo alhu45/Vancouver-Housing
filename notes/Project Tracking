@@ -1,5 +1,6 @@
-Week 1
+--------------------------------Week 1--------------------------------
 Monday Jan 5
+(Coding Notes)
 - Scoring the Livability Index out of a score of 100
   - Housing Price 40%
   - Tranist Access 10%
@@ -12,7 +13,10 @@ Monday Jan 5
 - Potentially remove amentites and add something else
 
 Friday Jan 9
+(Learning Notes)
 - Create proper timeline and using Claude to help code, ChatGPT for ideas/help
+
+(Coding Notes)
 - Setup AWS, Databricks, and Snowflake
 
 AWS S3 (Simple Storage Service) is Amazon's cloud service where it stores raw data files before processing them. 
@@ -20,3 +24,226 @@ AWS S3 (Simple Storage Service) is Amazon's cloud service where it stores raw da
 Raw Data → S3 (Bronze) → Databricks (Silver) → Snowflake (Gold)
 
 - Start setting up Terraform for AWS (Review the different Terraform Files)
+
+--------------------------------Week 2--------------------------------
+Wedensday Jan 14
+(Learning Notes)
+- Understanding the flow of the project timeline (Terraform -> S3 -> Databricks -> Snowflake)
+
+(Coding Notes)
+- Terraform files for AWS and Snowflake 
+
+Sunday Jan 18 
+(Learning Notes)
+- Project Flow:
+
+Terraform
+  ↓
+(AWS + Snowflake infrastructure exists)
+
+Airflow to run this entire thing
+  ↓
+(download raw data on schedule)
+  ↓
+AWS S3 (raw data storage)
+
+Databricks
+  ↓
+(clean + join + aggregate)
+  ↓
+Gold feature table
+
+Snowflake
+  ↓
+(store analytics-ready data)
+
+dbt
+  ↓
+(build marts + scores + tests)
+
+Dashboard / BI
+
+Based off this flow chart, is this how it works: set up environment with Terraform, 
+then get data with Apache Airflow, then it Airflow will orchestrate the raw data into AWS to 
+Databricks. Once Databricks cleans the data, then it will turn the cleaned data to business ready data for analysis 
+(bronze, silver, and gold layer handled in Databricks). The data then will be pushed AWS onto Snowflake for analysis.
+
+- Understand the structure of Terraform 
+  - Provider
+  - Variable
+  - Main
+  - Output
+
+- Understand how Snowflake works:
+
+SNOWFLAKE ACCOUNT
+│
+├── USERS & ROLES
+│
+├── WAREHOUSES (COMPUTING SQL QUUERIES)
+│    └── VANCOUVER_WH
+│
+└── DATA
+     └── DATABASE: VANCOUVER_DATA
+          ├── SCHEMA: BRONZE
+          │    ├── TABLES
+          │    └── STAGES → S3
+          ├── SCHEMA: SILVER
+          └── SCHEMA: GOLD
+
+- The flow of snowflake and AWS:
+AWS S3 (Bronze)
+   ↓
+Snowflake External Stage
+   ↓
+Snowflake Table (Bronze Schema)
+   ↓
+Transform → Silver → Gold
+
+(Coding Notes)
+- Started the Terraform Files
+  - Completed AWS Terraform Files
+  - Started the Snowflake Terraform Files
+
+--------------------------------Week 3--------------------------------
+Rest
+--------------------------------Week 4--------------------------------
+Friday Jan 30
+- Understanding more on Terraform main.tf file and continue to learn more
+
+Saturday Jan 31
+- AWS Connection with IAM
+  - ARN: Like a room number, it is a unique string that identifies a specific resource (e.g., arn:aws:s3:::my-bucket).
+  - IAM Role: Like a job title of someone, an identity (like "Maintenance" or "Admin") that any service or person can "put on" to get temporary permissions.
+  - IAM Policy: A JSON document that lists exactly what actions are allowed (Read, Write) and on which ARNs.
+
+  - How it Works in Practice: 
+    1. Identity (Role): You create a Role (e.g., Database-Backup-Role).
+
+    2. Permissions (Policy): You attach a Policy to that Role. “I allow the action s3:PutObject on the resource arn:aws:s3:::backup-bucket.”
+
+    3. Assignment: You give that Role to a service (e.g., an EC2 server or a Lambda function).
+
+    4. Action: The service "assumes" the Role and can now perform that specific task on that specific ARN.
+
+  - For this project -> AWS creates an ARN for snowflake, and Snowflake creates an ARN so they both can connect to each other
+
+- Summary of what I did so far:
+┌─────────────────────────────────────────────────────┐
+│  STEP 1: AWS Terraform (First Run)                  │
+│  ✅ Created S3 buckets                               │
+│  ✅ Created Airflow IAM user                         │
+│  ✅ Created Databricks IAM role                      │
+│  ❌ Skipped Snowflake IAM role (commented out)       │
+└─────────────────────────────────────────────────────┘
+                     ↓
+┌─────────────────────────────────────────────────────┐
+│  STEP 2: Snowflake Terraform ← YOU JUST DID THIS!   │
+│  ✅ Created database, schemas, warehouse             │
+│  ✅ Created storage integration                      │
+│  📋 Got Snowflake user ARN: cssc1000-s               │
+└─────────────────────────────────────────────────────┘
+                     ↓
+┌─────────────────────────────────────────────────────┐
+│  STEP 3: AWS Terraform (Second Run) ← DO THIS NEXT  │
+│  ✅ Create Snowflake IAM role                        │
+│  ✅ Trust Snowflake user ARN                         │
+│  📋 Get AWS role ARN                                 │
+└─────────────────────────────────────────────────────┘
+                     ↓
+┌─────────────────────────────────────────────────────┐
+│  STEP 4: Snowflake Terraform (Update)               │
+│  ✅ Update storage integration with AWS role         │
+└─────────────────────────────────────────────────────┘
+                     ↓
+┌─────────────────────────────────────────────────────┐
+│  STEP 5: Test                                        │
+│  ✅ Upload CSV to S3                                 │
+│  ✅ Query from Snowflake                             │
+│  🎉 SUCCESS!                                         │
+└─────────────────────────────────────────────────────┘
+
+- The step by step execution for this project in four phases:
+
+  - Phase 1: Infrastructure (Terraform)
+    What you’re doing
+    - Provision S3 buckets (Bronze / Silver / Gold)
+    - Create IAM roles and policies
+    - Set up Snowflake storage integrations and stages
+    Status
+    - Completed
+
+  - Phase 2: Processing (Databricks)
+    What you’re doing
+    - Set up Databricks workspace
+    - Create a notebook that:
+      - Reads raw data from S3 Bronze
+      - Cleans and transforms the data into S3 Silver
+
+    Status
+    - Next focus
+
+  - Phase 3: Modeling and Analytics (dbt + Snowflake) 
+    What you’re doing
+    - Feature engineering the data with SQL in Snowflake
+    - Use dbt inside Snowflake to:
+      - The final Gold Layer
+      - Build analytics-ready models
+      - Create final tables and views for dashboards or Streamlit website to show data
+    Status
+    - Final polish
+
+
+  - Phase 4: Orchestration (Airflow) 
+    What you’re doing
+    - Set up Airflow
+    - Build a DAG that:
+      1. Scrapes or ingests raw data → S3 Bronze
+      2. Triggers the Databricks processing job
+      3. Runs COPY INTO to load data into Snowflake (Command that tells Airflow to grab files and suck them into a Snowflake Table)
+    Status
+    - Saved for later
+
+- Before starting with Databricks:
+  - Clean up Terraform code
+  - Data collection then test AWS to Snowflake Connection
+
+--------------------------------Week 4--------------------------------
+Thursday Feb 5
+- IAM User vs IAM Role:
+    IAM User is the master controller allowing it to do whatever it wants in AWS, but within the user 
+    you can assign a role where you can give it temp access to whatever you config it to have
+
+- DAGs (Directed Acyclic Graph) Definition:
+    A DAG in Airflow defines a workflow of tasks and their dependencies. It’s written in Python and tells Airflow what runs, in what order, and on what 
+    schedule. For example, in a data pipeline, a DAG might extract data, clean it, upload to S3, and load it into Snowflake. As pipelines grow, DAGs 
+    can include branching, parallel tasks, retries, and monitoring.
+
+- Understanding the importance of SQL for Data Engineering 
+
+- Looking into debugging connection with AWS and Snowflake 
+
+- Databricks for Silver in Python
+
+- Snowflake for Gold (dbt) in SQL
+
+Next Steps:
+- Fix Snowflake AWS S3 Connection 
+- Start on Databricks Python cleaning 
+- Data collection
+
+--------------------------------Week 5--------------------------------
+Thrusday Feb 12
+- Difference between the IAM Roles and Users in the project
+
+- Debugging the Snowflake and AWS S3 Bucket Connection, almost complete
+
+Next time:
+- Finish setting up Snowflake Connection
+- Data collection next time and start Databricks Silver Layer
+
+--------------------------------Week 6--------------------------------
+Wed Feb 18
+- Connected Snowflake to AWS S3
+- Pushing Bronze data to Snowflake Bronze Layer
+

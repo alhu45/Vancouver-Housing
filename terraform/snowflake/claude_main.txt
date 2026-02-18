@@ -1,0 +1,261 @@
+# terraform/snowflake/main.tf
+# ==========================================
+# WHAT THIS FILE DOES:
+# Creates your Snowflake data warehouse infrastructure:
+# - Database (like a folder for tables)
+# - Schemas (like subfolders)
+# - Warehouse (compute power)
+# - S3 connection (link to your data lake)
+# ==========================================
+
+# ==========================================
+# PART 1: DATABASE (Top-level container)
+# ==========================================
+
+resource "snowflake_database" "vancouver" {
+  name    = var.database_name  # "VANCOUVER_DATA"
+  comment = "Vancouver Housing Livability Index project data"
+  
+  # WHAT HAPPENS: Creates database called "VANCOUVER_DATA"
+  # THINK OF IT AS: A folder that will contain all your tables
+  # IN SQL: CREATE DATABASE VANCOUVER_DATA;
+}
+
+# ==========================================
+# PART 2: SCHEMAS (Organize tables by layer)
+# ==========================================
+
+# RAW Schema - for staging raw data from S3
+resource "snowflake_schema" "raw" {
+  database = snowflake_database.vancouver.name
+  name     = "RAW"
+  comment  = "Raw data loaded directly from S3 (Bronze layer)"
+  
+  # RESULT: VANCOUVER_DATA.RAW schema
+  # USE FOR: External tables that point to S3 files
+  # EXAMPLE TABLE: VANCOUVER_DATA.RAW.CRIME_EXTERNAL
+}
+
+# ANALYTICS Schema - for cleaned, transformed data
+resource "snowflake_schema" "analytics" {
+  database = snowflake_database.vancouver.name
+  name     = "ANALYTICS"
+  comment  = "Cleaned and transformed data (Silver layer)"
+  
+  # RESULT: VANCOUVER_DATA.ANALYTICS schema
+  # USE FOR: Data loaded from Databricks after cleaning
+  # EXAMPLE TABLE: VANCOUVER_DATA.ANALYTICS.CRIME_CLEANED
+}
+
+# MARTS Schema - for business-ready data
+resource "snowflake_schema" "marts" {
+  database = snowflake_database.vancouver.name
+  name     = "MARTS"
+  comment  = "Business-ready data marts (Gold layer)"
+  
+  # RESULT: VANCOUVER_DATA.MARTS schema
+  # USE FOR: Final aggregated tables for dashboards
+  # EXAMPLE TABLE: VANCOUVER_DATA.MARTS.NEIGHBOURHOOD_LIVABILITY_INDEX
+}
+
+# ==========================================
+# PART 3: WAREHOUSE (Compute Engine)
+# ==========================================
+
+resource "snowflake_warehouse" "compute" {
+  name           = var.warehouse_name  # "VANCOUVER_WH"
+  warehouse_size = var.warehouse_size  # "X-SMALL"
+  
+  # AUTO-SUSPEND: Automatically stop after 60 seconds of inactivity
+  auto_suspend = 60  # seconds
+  # WHY: You only pay for compute when it's running
+  # COST SAVING: If idle for 1 minute, it shuts off automatically
+  
+  # AUTO-RESUME: Automatically start when you run a query
+  auto_resume = true
+  # WHY: No need to manually start it before queries
+  
+  comment = "Compute warehouse for Vancouver data processing"
+  
+  # WHAT HAPPENS: Creates an X-SMALL warehouse
+  # THINK OF IT AS: A small server that runs your SQL queries
+  # COST: ~$2/hour when running, $0 when suspended
+  # PERFECT FOR: Development and small datasets
+}
+
+# ==========================================
+# PART 4: STORAGE INTEGRATION (Connect to S3)
+# ==========================================
+
+resource "snowflake_storage_integration" "s3" {
+  name    = "VANCOUVER_S3_INTEGRATION"
+  type    = "EXTERNAL_STAGE"
+  enabled = true
+  
+  # Which S3 buckets Snowflake can access
+  storage_allowed_locations = [
+    "s3://${var.s3_bronze_bucket}/",
+    "s3://${var.s3_silver_bucket}/",
+    "s3://${var.s3_gold_bucket}/"
+  ]
+  
+  # EXAMPLE RESULT:
+  # ["s3://vancouver-data-bronze-dev/",
+  #  "s3://vancouver-data-silver-dev/",
+  #  "s3://vancouver-data-gold-dev/"]
+  
+  # AWS IAM role that Snowflake will assume
+  storage_aws_role_arn = var.aws_iam_role_arn
+  
+  # WHAT THIS DOES: 
+  # 1. Snowflake says "I want to read from these S3 buckets"
+  # 2. AWS says "Okay, use this IAM role to authenticate"
+  # 3. Snowflake can now read your S3 data
+  
+  comment = "Integration with AWS S3 for Vancouver data lake"
+}
+
+# ==========================================
+# AFTER CREATING THIS, YOU NEED TO:
+# ==========================================
+# 1. Get the IAM user ARN that Snowflake created:
+#    DESC INTEGRATION VANCOUVER_S3_INTEGRATION;
+#    Look for: STORAGE_AWS_IAM_USER_ARN
+#
+# 2. Update your AWS IAM role trust policy with this ARN
+#    (This is a one-time manual step - see README)
+# ==========================================
+
+# ==========================================
+# PART 5: EXTERNAL STAGES (Point to S3 folders)
+# ==========================================
+
+# Stage for Crime data
+resource "snowflake_stage" "bronze_crime" {
+  name     = "BRONZE_CRIME_STAGE"
+  database = snowflake_database.vancouver.name
+  schema   = snowflake_schema.raw.name
+  
+  # S3 path where crime data is stored
+  url = "s3://${var.s3_bronze_bucket}/crime/raw/"
+  # EXAMPLE: "s3://vancouver-data-bronze-dev/crime/raw/"
+  
+  # Use the storage integration we created above
+  storage_integration = snowflake_storage_integration.s3.name
+  
+  # File format for CSV files
+  file_format = "TYPE = CSV FIELD_OPTIONALLY_ENCLOSED_BY = '\"' SKIP_HEADER = 1"
+  
+  # WHAT THIS DOES:
+  # Creates a "pointer" to your S3 crime data
+  # NOW YOU CAN: SELECT * FROM @VANCOUVER_DATA.RAW.BRONZE_CRIME_STAGE;
+  # RESULT: Query CSV files in S3 without loading them into Snowflake
+}
+
+# Stage for Transit data
+resource "snowflake_stage" "bronze_transit" {
+  name     = "BRONZE_TRANSIT_STAGE"
+  database = snowflake_database.vancouver.name
+  schema   = snowflake_schema.raw.name
+  
+  url = "s3://${var.s3_bronze_bucket}/transit/raw/"
+  
+  storage_integration = snowflake_storage_integration.s3.name
+  
+  file_format = "TYPE = CSV FIELD_OPTIONALLY_ENCLOSED_BY = '\"' SKIP_HEADER = 1"
+  
+  # USAGE: List files in this stage
+  # LIST @VANCOUVER_DATA.RAW.BRONZE_TRANSIT_STAGE;
+}
+
+# Stage for Housing data
+resource "snowflake_stage" "bronze_housing" {
+  name     = "BRONZE_HOUSING_STAGE"
+  database = snowflake_database.vancouver.name
+  schema   = snowflake_schema.raw.name
+  
+  url = "s3://${var.s3_bronze_bucket}/housing/raw/"
+  
+  storage_integration = snowflake_storage_integration.s3.name
+  
+  file_format = "TYPE = JSON"  # Housing data might be JSON
+  
+  # FOR JSON: Snowflake can parse JSON automatically
+}
+
+# ==========================================
+# PART 6: ROLES & PERMISSIONS (Security)
+# ==========================================
+
+# Create analyst role
+resource "snowflake_role" "analyst" {
+  name    = "VANCOUVER_ANALYST"
+  comment = "Role for data analysts working on Vancouver project"
+  
+  # WHO GETS THIS: Junior analysts, BI developers, dashboard builders
+  # PERMISSIONS: Read-only access to analytics and marts
+}
+
+# Grant database usage
+resource "snowflake_database_grant" "analyst_usage" {
+  database_name = snowflake_database.vancouver.name
+  privilege     = "USAGE"  # Can see the database exists
+  roles         = [snowflake_role.analyst.name]
+  
+  # RESULT: Analysts can "see" VANCOUVER_DATA database
+}
+
+# Grant warehouse usage
+resource "snowflake_warehouse_grant" "analyst_usage" {
+  warehouse_name = snowflake_warehouse.compute.name
+  privilege      = "USAGE"  # Can run queries on this warehouse
+  roles          = [snowflake_role.analyst.name]
+  
+  # RESULT: Analysts can use VANCOUVER_WH to run queries
+  # NOTE: They can't modify warehouse settings
+}
+
+# Grant read access to ANALYTICS schema
+resource "snowflake_schema_grant" "analyst_analytics" {
+  database_name = snowflake_database.vancouver.name
+  schema_name   = snowflake_schema.analytics.name
+  privilege     = "USAGE"
+  roles         = [snowflake_role.analyst.name]
+  
+  # RESULT: Analysts can query VANCOUVER_DATA.ANALYTICS.* tables
+}
+
+# Grant read access to MARTS schema
+resource "snowflake_schema_grant" "analyst_marts" {
+  database_name = snowflake_database.vancouver.name
+  schema_name   = snowflake_schema.marts.name
+  privilege     = "USAGE"
+  roles         = [snowflake_role.analyst.name]
+  
+  # RESULT: Analysts can query VANCOUVER_DATA.MARTS.* tables
+}
+
+# Grant SELECT on future tables in ANALYTICS
+resource "snowflake_grant" "analyst_select_analytics" {
+  database_name = snowflake_database.vancouver.name
+  schema_name   = snowflake_schema.analytics.name
+  
+  privilege = "SELECT"  # Read-only
+  roles     = [snowflake_role.analyst.name]
+  
+  on_future = true  # Applies to tables created in the future
+  
+  # RESULT: Any new table in ANALYTICS automatically gets SELECT granted
+  # WHY: Don't need to manually grant permissions each time
+}
+
+# ==========================================
+# SUMMARY OF WHAT GETS CREATED:
+# ==========================================
+# ✅ Database: VANCOUVER_DATA
+# ✅ Schemas: RAW, ANALYTICS, MARTS
+# ✅ Warehouse: VANCOUVER_WH (X-SMALL, auto-suspend after 60s)
+# ✅ Storage Integration: Links to your 3 S3 buckets
+# ✅ External Stages: Pointers to crime/transit/housing folders in S3
+# ✅ Role: VANCOUVER_ANALYST with read permissions
+# ==========================================

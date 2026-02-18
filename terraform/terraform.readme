@@ -1,0 +1,535 @@
+# Vancouver Data Project - Terraform Infrastructure Setup
+
+This guide walks you through setting up your AWS and Snowflake infrastructure using Terraform.
+
+## 📋 Prerequisites
+
+Before starting, you need:
+
+1. **AWS Account** (free tier eligible)
+   - Sign up at https://aws.amazon.com
+   - Have credit card ready (won't be charged on free tier)
+
+2. **Snowflake Account** (30-day free trial)
+   - Sign up at https://signup.snowflake.com
+   - Choose Standard edition
+   - Pick AWS as cloud provider
+
+3. **Terraform Installed**
+   ```bash
+   # macOS
+   brew install terraform
+   
+   # Windows (with Chocolatey)
+   choco install terraform
+   
+   # Linux
+   wget https://releases.hashicorp.com/terraform/1.7.0/terraform_1.7.0_linux_amd64.zip
+   unzip terraform_1.7.0_linux_amd64.zip
+   sudo mv terraform /usr/local/bin/
+   ```
+
+4. **AWS CLI Installed and Configured**
+   ```bash
+   # Install
+   pip install awscli
+   
+   # Configure (enter your credentials when prompted)
+   aws configure
+   ```
+
+---
+
+## 🏗️ Project Structure
+
+```
+terraform/
+├── aws/
+│   ├── provider.tf      # AWS connection setup
+│   ├── variables.tf     # Configurable settings
+│   ├── main.tf          # S3 buckets, IAM roles
+│   └── outputs.tf       # Important values to display
+│
+└── snowflake/
+    ├── provider.tf      # Snowflake connection setup
+    ├── variables.tf     # Configurable settings
+    ├── main.tf          # Database, warehouse, S3 integration
+    └── outputs.tf       # Important values to display
+```
+
+---
+
+## 🚀 Step-by-Step Setup
+
+### Step 1: Set Up AWS Infrastructure
+
+#### 1.1 Navigate to AWS folder
+```bash
+cd terraform/aws
+```
+
+#### 1.2 Create a `.gitignore` file (IMPORTANT!)
+```bash
+cat > .gitignore <<EOF
+# Terraform state files
+*.tfstate
+*.tfstate.backup
+.terraform/
+.terraform.lock.hcl
+
+# Variable files with secrets
+terraform.tfvars
+*.auto.tfvars
+
+# Crash logs
+crash.log
+EOF
+```
+
+#### 1.3 Initialize Terraform
+```bash
+terraform init
+```
+
+**What this does:** Downloads the AWS provider plugin
+
+**Expected output:**
+```
+Initializing the backend...
+Initializing provider plugins...
+- Finding hashicorp/aws versions matching "~> 5.0"...
+- Installing hashicorp/aws v5.31.0...
+Terraform has been successfully initialized!
+```
+
+#### 1.4 Review what will be created
+```bash
+terraform plan
+```
+
+**What this does:** Shows you what Terraform will create WITHOUT actually creating it
+
+**You should see:**
+- 3 S3 buckets (bronze, silver, gold)
+- IAM user for Airflow
+- IAM roles for Databricks and Snowflake
+- Total: ~10-15 resources
+
+#### 1.5 Create the infrastructure
+```bash
+terraform apply
+```
+
+**What this does:** Actually creates the resources in AWS
+
+**You'll be prompted:**
+```
+Do you want to perform these actions?
+  Terraform will perform the actions described above.
+  Only 'yes' will be accepted to approve.
+
+  Enter a value: 
+```
+
+Type `yes` and press Enter.
+
+**Expected output:**
+```
+Apply complete! Resources: 15 added, 0 changed, 0 destroyed.
+
+Outputs:
+bronze_bucket_name = "vancouver-data-bronze-dev"
+silver_bucket_name = "vancouver-data-silver-dev"
+gold_bucket_name = "vancouver-data-gold-dev"
+databricks_role_arn = "arn:aws:iam::123456789012:role/vancouver-data-databricks-role"
+snowflake_role_arn = "arn:aws:iam::123456789012:role/vancouver-data-snowflake-role"
+airflow_access_key_id = <sensitive>
+airflow_secret_access_key = <sensitive>
+```
+
+#### 1.6 Save important outputs
+```bash
+# Save all outputs to a file
+terraform output > ../aws_outputs.txt
+
+# View sensitive outputs
+terraform output airflow_access_key_id
+terraform output airflow_secret_access_key
+```
+
+**⚠️ SECURITY:** Never commit these credentials to Git!
+
+---
+
+### Step 2: Verify AWS Resources
+
+#### 2.1 Check S3 buckets in AWS Console
+1. Go to https://console.aws.amazon.com/s3
+2. You should see 3 buckets:
+   - `vancouver-data-bronze-dev`
+   - `vancouver-data-silver-dev`
+   - `vancouver-data-gold-dev`
+
+#### 2.2 Test upload to S3
+```bash
+# Create a test file
+echo "test,data" > test.csv
+
+# Upload to bronze bucket
+aws s3 cp test.csv s3://vancouver-data-bronze-dev/test/test.csv
+
+# Verify it's there
+aws s3 ls s3://vancouver-data-bronze-dev/test/
+```
+
+**Expected output:**
+```
+2024-01-14 10:30:45         10 test.csv
+```
+
+---
+
+### Step 3: Set Up Snowflake Infrastructure
+
+#### 3.1 Get your Snowflake account identifier
+
+1. Log into Snowflake UI
+2. Click your name (top right) → **Account**
+3. Copy the **Account Identifier** (e.g., `xy12345.us-east-1`)
+
+Alternatively, look at your Snowflake URL:
+- URL: `https://xy12345.snowflakecomputing.com`
+- Account ID: `xy12345`
+- Region: Check which AWS region you chose during signup
+
+#### 3.2 Navigate to Snowflake folder
+```bash
+cd ../snowflake
+```
+
+#### 3.3 Create terraform.tfvars file
+```bash
+cat > terraform.tfvars <<EOF
+# Snowflake credentials
+snowflake_account  = "xy12345.us-east-1"     # YOUR ACCOUNT ID
+snowflake_user     = "your.email@gmail.com"  # YOUR USERNAME
+snowflake_password = "YourPassword123"       # YOUR PASSWORD
+
+# S3 bucket names (from AWS outputs)
+s3_bronze_bucket = "vancouver-data-bronze-dev"
+s3_silver_bucket = "vancouver-data-silver-dev"
+s3_gold_bucket   = "vancouver-data-gold-dev"
+
+# IAM role ARN (from AWS outputs)
+aws_iam_role_arn = "arn:aws:iam::123456789012:role/vancouver-data-snowflake-role"
+
+# AWS region
+aws_region = "ca-central-1"
+EOF
+```
+
+**Replace:**
+- `xy12345.us-east-1` with your actual Snowflake account
+- `your.email@gmail.com` with your Snowflake username
+- `YourPassword123` with your Snowflake password
+- IAM role ARN with the output from AWS Terraform
+
+#### 3.4 Add terraform.tfvars to .gitignore
+```bash
+cat > .gitignore <<EOF
+*.tfstate
+*.tfstate.backup
+.terraform/
+.terraform.lock.hcl
+terraform.tfvars
+*.auto.tfvars
+crash.log
+EOF
+```
+
+#### 3.5 Initialize Terraform
+```bash
+terraform init
+```
+
+#### 3.6 Review what will be created
+```bash
+terraform plan
+```
+
+**You should see:**
+- 1 database (VANCOUVER_DATA)
+- 3 schemas (RAW, ANALYTICS, MARTS)
+- 1 warehouse (VANCOUVER_WH)
+- 1 storage integration
+- 3 external stages
+- 1 role with permissions
+
+#### 3.7 Create the infrastructure
+```bash
+terraform apply
+```
+
+Type `yes` when prompted.
+
+**Expected output:**
+```
+Apply complete! Resources: 12 added, 0 changed, 0 destroyed.
+
+Outputs:
+database_name = "VANCOUVER_DATA"
+warehouse_name = "VANCOUVER_WH"
+storage_integration_arn = "arn:aws:iam::123456789:user/abc-s-xyz123"
+...
+```
+
+#### 3.8 **CRITICAL:** Update AWS IAM Trust Policy
+
+This is the **MOST IMPORTANT** step to connect Snowflake to S3:
+
+```bash
+# 1. Copy the storage_integration_arn
+terraform output storage_integration_arn
+# Result: arn:aws:iam::123456789:user/abc-s-xyz123
+
+# 2. Go to AWS Console → IAM → Roles → vancouver-data-snowflake-role
+
+# 3. Click "Trust relationships" tab → "Edit trust policy"
+
+# 4. Find this section:
+{
+  "Effect": "Allow",
+  "Principal": {
+    "AWS": "arn:aws:iam::123456789012:user/snowflake-user"  # OLD placeholder
+  },
+  "Action": "sts:AssumeRole"
+}
+
+# 5. Replace with the ARN from Terraform output:
+{
+  "Effect": "Allow",
+  "Principal": {
+    "AWS": "arn:aws:iam::123456789:user/abc-s-xyz123"  # NEW from Snowflake
+  },
+  "Action": "sts:AssumeRole"
+}
+
+# 6. Click "Update policy"
+```
+
+**Why this is needed:** This tells AWS "I trust this Snowflake user to access my S3 buckets"
+
+---
+
+### Step 4: Test the Full Setup
+
+#### 4.1 Test S3 → Snowflake connection
+
+1. Log into Snowflake UI
+2. Go to **Worksheets**
+3. Run these commands:
+
+```sql
+-- Use your warehouse
+USE WAREHOUSE VANCOUVER_WH;
+
+-- Use your database
+USE DATABASE VANCOUVER_DATA;
+
+-- Test storage integration
+DESC INTEGRATION VANCOUVER_S3_INTEGRATION;
+
+-- List files in bronze crime stage (should be empty for now)
+LIST @RAW.BRONZE_CRIME_STAGE;
+```
+
+**Expected result:** Should run without errors (even if no files exist yet)
+
+#### 4.2 Upload test data and query it
+
+```bash
+# Upload a test CSV to S3
+cd ../..  # Back to project root
+echo "TYPE,YEAR,MONTH
+Theft,2024,1
+Break and Enter,2024,1" > test_crime.csv
+
+aws s3 cp test_crime.csv s3://vancouver-data-bronze-dev/crime/raw/
+```
+
+Now in Snowflake:
+```sql
+-- Query the file directly from S3
+SELECT * 
+FROM @RAW.BRONZE_CRIME_STAGE
+LIMIT 10;
+```
+
+**Expected result:**
+```
+TYPE              | YEAR | MONTH
+Theft             | 2024 | 1
+Break and Enter   | 2024 | 1
+```
+
+**🎉 SUCCESS!** If you see data, Snowflake is reading from S3!
+
+---
+
+## 📊 What You Just Built
+
+### AWS Side:
+```
+S3 Buckets:
+├── vancouver-data-bronze-dev   (Raw data landing zone)
+├── vancouver-data-silver-dev   (Cleaned data)
+└── vancouver-data-gold-dev     (Analytics-ready data)
+
+IAM:
+├── airflow-user                (For uploading data)
+├── databricks-role             (For Databricks to read/write S3)
+└── snowflake-role              (For Snowflake to read S3)
+```
+
+### Snowflake Side:
+```
+VANCOUVER_DATA Database:
+├── RAW Schema
+│   ├── BRONZE_CRIME_STAGE      (Points to S3 crime data)
+│   ├── BRONZE_TRANSIT_STAGE    (Points to S3 transit data)
+│   └── BRONZE_HOUSING_STAGE    (Points to S3 housing data)
+├── ANALYTICS Schema            (For cleaned tables)
+└── MARTS Schema                (For business metrics)
+
+VANCOUVER_WH Warehouse:
+└── X-SMALL size ($2/hr, auto-suspend after 60s)
+```
+
+---
+
+## 💰 Cost Breakdown
+
+| Service | Cost | When Charged |
+|---------|------|-------------|
+| **AWS S3** | $0.023/GB/month | Only for data stored |
+| **AWS IAM** | FREE | Always free |
+| **Snowflake Warehouse** | $2/hour | Only when running queries |
+| **Snowflake Storage** | $23/TB/month | Only for data stored |
+
+**Expected monthly cost for this project:** $0-5
+- Free tier covers S3 usage
+- Warehouse auto-suspends (minimal compute)
+- Small data size = minimal storage costs
+
+---
+
+## 🔧 Useful Commands
+
+### AWS Terraform Commands
+```bash
+cd terraform/aws
+
+# See what exists
+terraform show
+
+# Get specific output
+terraform output bronze_bucket_name
+
+# Update infrastructure (after changing .tf files)
+terraform apply
+
+# Destroy everything (CAREFUL!)
+terraform destroy
+```
+
+### Snowflake Terraform Commands
+```bash
+cd terraform/snowflake
+
+# See current state
+terraform show
+
+# Refresh outputs
+terraform refresh
+
+# Update infrastructure
+terraform apply
+
+# Destroy everything
+terraform destroy
+```
+
+### AWS CLI Commands
+```bash
+# List all buckets
+aws s3 ls
+
+# List files in a bucket
+aws s3 ls s3://vancouver-data-bronze-dev/crime/raw/
+
+# Upload file
+aws s3 cp local_file.csv s3://vancouver-data-bronze-dev/crime/raw/
+
+# Download file
+aws s3 cp s3://vancouver-data-bronze-dev/crime/raw/file.csv ./
+```
+
+---
+
+## 🐛 Troubleshooting
+
+### Error: "BucketAlreadyExists"
+**Problem:** S3 bucket names must be globally unique across ALL AWS accounts
+
+**Solution:** Change `project_name` in `terraform/aws/variables.tf`:
+```hcl
+variable "project_name" {
+  default = "vancouver-data-yourname"  # Add your name
+}
+```
+
+### Error: "Access Denied" when querying Snowflake stage
+**Problem:** IAM trust policy not updated
+
+**Solution:** Follow Step 3.8 again to update AWS IAM role trust policy
+
+### Error: "Credentials invalid" in Snowflake
+**Problem:** Wrong username/password in terraform.tfvars
+
+**Solution:** Double-check your Snowflake credentials, try logging into UI
+
+### Warehouse suspended immediately
+**Problem:** This is normal! Auto-suspend is set to 60 seconds
+
+**Solution:** Warehouse will auto-resume when you run a query
+
+---
+
+## 🎯 Next Steps
+
+Now that infrastructure is ready:
+
+1. **Set up Airflow** to fetch Vancouver Open Data
+2. **Create Databricks notebooks** to process data
+3. **Load cleaned data to Snowflake**
+4. **Build dbt models** for business metrics
+5. **Create dashboards** in Tableau/PowerBI
+
+---
+
+## 📚 Additional Resources
+
+- [Terraform AWS Provider Docs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)
+- [Terraform Snowflake Provider Docs](https://registry.terraform.io/providers/Snowflake-Labs/snowflake/latest/docs)
+- [AWS S3 Pricing](https://aws.amazon.com/s3/pricing/)
+- [Snowflake Pricing](https://www.snowflake.com/pricing/)
+
+---
+
+## ⚠️ IMPORTANT REMINDERS
+
+1. ✅ **Always** add `terraform.tfvars` to `.gitignore`
+2. ✅ **Never** commit AWS credentials to Git
+3. ✅ **Always** run `terraform plan` before `apply`
+4. ✅ **Remember** to update AWS IAM trust policy after Snowflake setup
+5. ✅ **Monitor** your AWS billing dashboard regularly

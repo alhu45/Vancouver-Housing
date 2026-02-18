@@ -1,0 +1,296 @@
+# ==========================================
+# WHAT THIS FILE DOES:
+# Creates the actual AWS resources (S3 buckets, IAM roles, etc.)
+# This is the "meat" of your infrastructure
+# ==========================================
+
+# ==========================================
+# PART 1: S3 BUCKETS (Storage for your data)
+# ==========================================
+
+# BRONZE BUCKET: Raw data exactly as you received it
+resource "aws_s3_bucket" "bronze" {
+  bucket = "${var.project_name}-bronze-${var.environment}"
+  # RESULT: "vancouver-data-bronze-dev"
+  
+  tags = merge(
+    var.tags,  # Include all common tags from variables.tf
+    {
+      Name  = "Bronze Layer - Raw Data"
+      Layer = "bronze"
+    }
+  )
+  
+  # WHAT HAPPENS: AWS creates a bucket named "vancouver-data-bronze-dev"
+  # YOU CAN: Upload files to s3://vancouver-data-bronze-dev/crime/raw/
+}
+
+# SILVER BUCKET: Cleaned, validated data
+resource "aws_s3_bucket" "silver" {
+  bucket = "${var.project_name}-silver-${var.environment}"
+  # RESULT: "vancouver-data-silver-dev"
+  
+  tags = merge(
+    var.tags,
+    {
+      Name  = "Silver Layer - Cleaned Data"
+      Layer = "silver"
+    }
+  )
+  
+  # WHAT HAPPENS: Databricks will write cleaned data here
+}
+
+# GOLD BUCKET: Analytics-ready aggregated data
+resource "aws_s3_bucket" "gold" {
+  bucket = "${var.project_name}-gold-${var.environment}"
+  # RESULT: "vancouver-data-gold-dev"
+  
+  tags = merge(
+    var.tags,
+    {
+      Name  = "Gold Layer - Analytics Data"
+      Layer = "gold"
+    }
+  )
+  
+  # WHAT HAPPENS: Final aggregated data ready for dashboards
+}
+
+# ==========================================
+# PART 2: VERSIONING (Keep history of changes)
+# ==========================================
+
+resource "aws_s3_bucket_versioning" "bronze" {
+  bucket = aws_s3_bucket.bronze.id
+  
+  versioning_configuration {
+    status = "Enabled"
+  }
+  
+  # WHY: If you accidentally overwrite a file, you can recover the old version
+  # EXAMPLE: crime_2024.csv gets updated, but you can still access the old one
+}
+
+resource "aws_s3_bucket_versioning" "silver" {
+  bucket = aws_s3_bucket.silver.id
+  
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+# ==========================================
+# PART 3: LIFECYCLE RULES (Auto-cleanup to save money)
+# ==========================================
+
+resource "aws_s3_bucket_lifecycle_configuration" "bronze" {
+  bucket = aws_s3_bucket.bronze.id
+
+  rule {
+    id     = "archive-old-data"
+    status = "Enabled"
+
+    filter {}
+
+    # After 90 days, move to cheaper storage
+    transition {
+      days          = 90
+      storage_class = "GLACIER"
+      # COST SAVINGS: $0.023/GB → $0.004/GB (83% cheaper!)
+    }
+
+    # After 365 days, delete it
+    expiration {
+      days = 365
+      # WHY: Raw data from 2 years ago probably isn't needed
+    }
+  }
+  
+  # RESULT: Old data automatically gets cheaper, then deleted
+  # YOU SAVE: Money on storage costs
+}
+
+# ==========================================
+# PART 4: IAM USER FOR AIRFLOW (Credentials for your scripts)
+# ==========================================
+
+resource "aws_iam_user" "airflow" {
+  name = "${var.project_name}-airflow-user"
+  # RESULT: User named "vancouver-data-airflow-user"
+  
+  tags = var.tags
+  
+  # WHAT HAPPENS: Creates a user account that Airflow will use
+}
+
+# Give Airflow permission to upload to Bronze bucket
+resource "aws_iam_user_policy" "airflow_s3_access" {
+  name = "${var.project_name}-airflow-s3-policy"
+  user = aws_iam_user.airflow.name
+  
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",      # Upload files
+          "s3:GetObject",      # Download files
+          "s3:ListBucket"      # List files in bucket
+        ]
+        Resource = [
+          aws_s3_bucket.bronze.arn,           # The bucket itself
+          "${aws_s3_bucket.bronze.arn}/*"     # Everything inside the bucket
+        ]
+      }
+    ]
+  })
+  
+  # THINK OF IT AS: Giving Airflow a key to upload data to Bronze bucket
+}
+
+# Create access keys (username + password for API access)
+resource "aws_iam_access_key" "airflow" {
+  user = aws_iam_user.airflow.name
+  
+  # WHAT YOU GET: Access Key ID and Secret Access Key
+  # USE IN: Airflow to authenticate to AWS
+}
+
+# ==========================================
+# PART 5: IAM ROLE FOR SNOWFLAKE (Let Snowflake read your S3 data) (Comment out for now)
+# ==========================================
+
+# # Trust policy: "I trust Snowflake to use this role"
+# data "aws_iam_policy_document" "snowflake_assume_role" {
+#   statement {
+#     effect = "Allow"
+    
+#     principals {
+#       type        = "AWS"
+#       identifiers = ["arn:aws:iam::123456789012:user/snowflake-user"]
+#       # NOTE: This placeholder will be replaced with actual Snowflake ARN
+#       # You get this from Snowflake after creating storage integration
+#     }
+    
+#     actions = ["sts:AssumeRole"]
+    
+#     # WHAT THIS MEANS: "Snowflake, you're allowed to pretend to be this role"
+#   }
+# }
+
+# resource "aws_iam_role" "snowflake_s3_access" {
+#   name               = "${var.project_name}-snowflake-role"
+#   assume_role_policy = data.aws_iam_policy_document.snowflake_assume_role.json
+  
+#   tags = var.tags
+  
+#   # RESULT: Role named "vancouver-data-snowflake-role"
+# }
+
+# # Permission policy: "What Snowflake can do when using this role"
+# data "aws_iam_policy_document" "snowflake_s3_policy" {
+#   statement {
+#     effect = "Allow"
+    
+#     actions = [
+#       "s3:GetObject",        # Read files
+#       "s3:GetObjectVersion", # Read old versions
+#       "s3:ListBucket"        # List files
+#     ]
+    
+#     resources = [
+#       aws_s3_bucket.bronze.arn,
+#       "${aws_s3_bucket.bronze.arn}/*",
+#       aws_s3_bucket.silver.arn,
+#       "${aws_s3_bucket.silver.arn}/*",
+#       aws_s3_bucket.gold.arn,
+#       "${aws_s3_bucket.gold.arn}/*"
+#     ]
+    
+#     # RESULT: Snowflake can READ from all three buckets
+#     # NOTE: Snowflake CANNOT write or delete (security!)
+#   }
+# }
+
+# resource "aws_iam_role_policy" "snowflake_s3_access" {
+#   name   = "${var.project_name}-snowflake-s3-policy"
+#   role   = aws_iam_role.snowflake_s3_access.id
+#   policy = data.aws_iam_policy_document.snowflake_s3_policy.json
+# }
+
+# ==========================================
+# PART 6: IAM ROLE FOR DATABRICKS (Let Databricks read/write S3)
+# ==========================================
+
+# Trust policy: "I trust Databricks to use this role"
+data "aws_iam_policy_document" "databricks_assume_role" {
+  statement {
+    effect = "Allow"
+    
+    principals {
+      type        = "AWS"
+      identifiers = ["arn:aws:iam::414351767826:root"]
+      # This is Databricks' AWS account ID (standard for all Databricks users)
+    }
+    
+    actions = ["sts:AssumeRole"]
+    
+    condition {
+      test     = "StringEquals"
+      variable = "sts:ExternalId"
+      values   = ["databricks-external-id-placeholder"]
+      # You'll replace this with actual external ID from Databricks setup
+    }
+  }
+}
+
+resource "aws_iam_role" "databricks_s3_access" {
+  name               = "${var.project_name}-databricks-role"
+  assume_role_policy = data.aws_iam_policy_document.databricks_assume_role.json
+  
+  tags = var.tags
+}
+
+# Permission policy: "Databricks can read AND write"
+data "aws_iam_policy_document" "databricks_s3_policy" {
+  statement {
+    effect = "Allow"
+    
+    actions = [
+      "s3:GetObject",
+      "s3:PutObject",      # Write files
+      "s3:DeleteObject",   # Delete files
+      "s3:ListBucket"
+    ]
+    
+    resources = [
+      aws_s3_bucket.bronze.arn,
+      "${aws_s3_bucket.bronze.arn}/*",
+      aws_s3_bucket.silver.arn,
+      "${aws_s3_bucket.silver.arn}/*",
+      aws_s3_bucket.gold.arn,
+      "${aws_s3_bucket.gold.arn}/*"
+    ]
+    
+    # RESULT: Databricks can read from Bronze, write to Silver/Gold
+  }
+}
+
+resource "aws_iam_role_policy" "databricks_s3_access" {
+  name   = "${var.project_name}-databricks-s3-policy"
+  role   = aws_iam_role.databricks_s3_access.id
+  policy = data.aws_iam_policy_document.databricks_s3_policy.json
+}
+
+# ==========================================
+# SUMMARY OF WHAT GETS CREATED:
+# ==========================================
+# ✅ 3 S3 buckets: bronze, silver, gold
+# ✅ Versioning enabled on bronze & silver (can recover deleted files)
+# ✅ Lifecycle rule on bronze (auto-archive after 90 days, delete after 365)
+# ✅ IAM user for Airflow with upload permissions
+# ✅ IAM role for Snowflake with read permissions
+# ✅ IAM role for Databricks with read/write permissions
+# ==========================================

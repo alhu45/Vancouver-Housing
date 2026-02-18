@@ -1,0 +1,5 @@
+# Upload to S3 Bronze bucket
+aws s3 cp van_crime.csv s3://vancouver-data-bronze-dev/crime/raw/
+
+# Verify upload
+aws s3 ls s3://vancouver-data-bronze-dev/crime/raw/
