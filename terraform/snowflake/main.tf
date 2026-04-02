@@ -1,12 +1,11 @@
 # ==========================================
 # SUMMARY OF WHAT GETS CREATED:
-# ==========================================
-# ✅ Database: VANCOUVER_DATA
-# ✅ Schemas: RAW, ANALYTICS, MARTS
-# ✅ Warehouse: VANCOUVER_WH (X-SMALL, auto-suspend after 60s)
-# ✅ Storage Integration: Links to your 3 S3 buckets
-# ✅ External Stages: Pointers to crime/transit/housing folders in S3
-# ✅ Role: VANCOUVER_ANALYST with read permissions (new syntax)
+# Database: VANCOUVER_DATA
+# Schemas: RAW, ANALYTICS, MARTS
+# Warehouse: VANCOUVER_WH (X-SMALL, auto-suspend after 60s)
+# Storage Integration: Links to your 3 S3 buckets
+# External Stages: Pointers to crime/transit/housing folders in S3
+# Role: VANCOUVER_ANALYST with read permissions (new syntax)
 # ==========================================
 
 # This file will create Snowflake Warehouse Infrastructure
@@ -30,24 +29,14 @@
 #           ├── SCHEMA: SILVER
 #           └── SCHEMA: GOLD
 
-
-# terraform/snowflake/main.tf
-# ==========================================
-# UPDATED FOR SNOWFLAKE PROVIDER v0.94+
-# ==========================================
-
-# ==========================================
 # PART 1: DATABASE (Top-level container)
-# ==========================================
 
 resource "snowflake_database" "vancouver" {
   name    = var.database_name
   comment = "Vancouver Housing Livability Index project data"
 }
 
-# ==========================================
 # PART 2: SCHEMAS (Organize tables by layer)
-# ==========================================
 
 resource "snowflake_schema" "raw" {
   database = snowflake_database.vancouver.name
@@ -67,9 +56,7 @@ resource "snowflake_schema" "marts" {
   comment  = "Business-ready data marts (Gold layer)"
 }
 
-# ==========================================
 # PART 3: WAREHOUSE (Compute Engine)
-# ==========================================
 
 resource "snowflake_warehouse" "compute" {
   name           = var.warehouse_name
@@ -79,9 +66,7 @@ resource "snowflake_warehouse" "compute" {
   comment        = "Compute warehouse for Vancouver data processing"
 }
 
-# ==========================================
 # PART 4: STORAGE INTEGRATION (Connect to S3)
-# ==========================================
 
 resource "snowflake_storage_integration" "s3" {
   name    = "VANCOUVER_S3_INTEGRATION"
@@ -102,9 +87,7 @@ resource "snowflake_storage_integration" "s3" {
   comment = "Integration with AWS S3 for Vancouver data lake"
 }
 
-# ==========================================
 # PART 5: EXTERNAL STAGES (Point to S3 folders)
-# ==========================================
 
 resource "snowflake_stage" "bronze_crime" {
   name     = "BRONZE_CRIME_STAGE"
@@ -142,9 +125,7 @@ resource "snowflake_stage" "bronze_housing" {
   file_format = "type = JSON"
 }
 
-# ==========================================
 # PART 6: ROLES & PERMISSIONS (Updated Syntax)
-# ==========================================
 
 # Create analyst role (using new resource type)
 resource "snowflake_account_role" "analyst" {

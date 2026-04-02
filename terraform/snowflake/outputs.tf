@@ -1,13 +1,9 @@
 # terraform/snowflake/outputs.tf
-# ==========================================
 # WHAT THIS FILE DOES:
 # Displays important information after Snowflake resources are created
 # Like a summary sheet of what was built
-# ==========================================
 
-# ==========================================
 # DATABASE & SCHEMA NAMES
-# ==========================================
 
 output "database_name" {
   description = "Name of the Snowflake database"
@@ -42,9 +38,7 @@ output "marts_schema" {
   # FULL PATH: VANCOUVER_DATA.MARTS
 }
 
-# ==========================================
 # WAREHOUSE INFORMATION
-# ==========================================
 
 output "warehouse_name" {
   description = "Name of the compute warehouse"
@@ -64,9 +58,7 @@ output "warehouse_size" {
   # WHY: Good reminder of what you're paying for
 }
 
-# ==========================================
 # STORAGE INTEGRATION
-# ==========================================
 
 output "storage_integration_name" {
   description = "Name of S3 storage integration"
@@ -102,9 +94,7 @@ output "storage_integration_external_id" {
   # USE IN: AWS IAM role trust policy (if needed)
 }
 
-# ==========================================
 # STAGE NAMES (For querying S3 data)
-# ==========================================
 
 output "crime_stage_name" {
   description = "External stage for crime data"
@@ -130,9 +120,7 @@ output "housing_stage_name" {
   # DISPLAYS: "VANCOUVER_DATA.RAW.BRONZE_HOUSING_STAGE"
 }
 
-# ==========================================
 # ROLE INFORMATION
-# ==========================================
 
 output "analyst_role_name" {
   description = "Name of analyst role"
@@ -143,9 +131,7 @@ output "analyst_role_name" {
   # EXAMPLE: GRANT ROLE VANCOUVER_ANALYST TO USER john.doe@email.com;
 }
 
-# ==========================================
 # CONNECTION STRING (for convenience)
-# ==========================================
 
 output "snowflake_connection_info" {
   description = "Connection information for Snowflake"
@@ -169,9 +155,7 @@ output "snowflake_connection_info" {
   # USE IN: BI tool connections (Tableau, PowerBI)
 }
 
-# ==========================================
 # EXAMPLE SQL COMMANDS (helpful for testing)
-# ==========================================
 
 output "example_sql_commands" {
   description = "Example SQL commands to test your setup"
@@ -202,7 +186,6 @@ output "example_sql_commands" {
 
 # ==========================================
 # HOW TO USE THESE OUTPUTS:
-# ==========================================
 # After running 'terraform apply', you'll see:
 #
 # Outputs:

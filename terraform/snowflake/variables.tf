@@ -1,4 +1,4 @@
-# SNOWFLAKE ACCOUNT
+# SNOWFLAKE ACCOUNT BREAKDOWN
 # │
 # ├── USERS & ROLES
 # │
@@ -91,9 +91,7 @@ variable "aws_iam_role_arn" {
   # WHY: This is how Snowflake gets permission to read your S3 data
 }
 
-# ==========================================
 # AWS REGION (needed for S3 paths)
-# ==========================================
 
 variable "aws_region" {
     description = "AWS region where S3 buckets are located"
@@ -105,7 +103,6 @@ variable "aws_region" {
 
 # ==========================================
 # HOW TO USE THESE VARIABLES:
-# ==========================================
 # Create a file called terraform.tfvars:
 #
 # snowflake_account  = "xy12345.us-east-1"

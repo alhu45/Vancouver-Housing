@@ -230,7 +230,7 @@ Thursday Feb 5
 Next Steps:
 - Fix Snowflake AWS S3 Connection 
 - Start on Databricks Python cleaning 
-- Data collection
+- Data collection for Housing -> https://www.gvrealtors.ca/market-watch/MLS-HPI-home-price-comparison.hpi.vancouver_east.killarney_ve.apartment.2026-1-1.html
 
 --------------------------------Week 5--------------------------------
 Thrusday Feb 12
@@ -247,3 +247,156 @@ Wed Feb 18
 - Connected Snowflake to AWS S3
 - Pushing Bronze data to Snowflake Bronze Layer
 
+- What did in Snowflake when copying data
+  - Connected to AWS S3 using your stage (Stage is the pointer to the AWS S3)
+  - Read the CSV file in STAGE
+  - Parsed it
+  - Broke it into micro-partitions
+  - Stored those micro-partitions in Snowflake’s own storage layer
+
+- This is where the new table sits logically
+VANCOUVER_DATA
+  └── RAW
+        └── CRIME_RAW
+
+- ONLY NEED TO RUN ONCE PER WORKSHEET 
+USE WAREHOUSE COMPUTE_WH;
+USE DATABASE VANCOUVER_DATA;
+USE SCHEMA RAW;
+
+The plan: Gold data will be feature engineering, and then I push back to databricks with the gold cleaned data to make predictions
+
+Sunday Feb 22
+The recommended approach is to use the second option: ingest raw data into AWS S3 (Bronze), transform it using Databricks into the Silver layer, and 
+then load it into Snowflake for the Gold layer.
+
+- Writing Notes for Snowflake 
+- Learning notes for Databricks and then apply it to project
+
+Next Steps:
+- Start working on Databricks connection with AWS S3 Buckets and writing code on Notebooks using Spark instead of Pandas
+
+--------------------------------Week 7--------------------------------
+Tues Feb 24
+- Pushing Housing data to S3
+- Some notes on Databricks
+
+Next Steps:
+- Start on Databricks AWS Connection
+- Databricks 14 Day Trial to Practice
+
+Thursday Feb 26
+-- Start of Notes --
+When creating Databricks connection with AWS it creates a S3 Bucket and IAM Roles:
+
+Why a new S3 bucket is created:
+
+Databricks needs a workspace root storage bucket (sometimes called “workspace assets storage” or “root S3 bucket”) for Databricks-managed stuff like:
+  - notebook/workspace metadata and artifacts
+  - cluster logs
+  - library installs / init scripts (depending on setup)
+  - system files needed for the workspace to function
+  - sometimes managed Delta table storage (depending on features)
+
+This bucket is not your data lake. It’s “Databricks’ home folder” in your AWS account.
+
+Why a new S3 bucket is created:
+
+Databricks separates permissions on purpose:
+1) Compute (cross-account) role
+This lets Databricks launch and manage EC2 clusters in your AWS account:
+  - create/attach network interfaces
+  - security groups
+  - spin up worker nodes
+  - read instance profiles / etc.
+Without this, you literally can’t run PySpark in Databricks.
+
+2) Storage access role
+This lets Databricks access S3 (workspace bucket + any data buckets you allow).
+Databricks keeps “launch compute” permissions separate from “access data” permissions for security and least privilege.
+
+Inside of Databricks, created Catalogs to connect the AWS S3 Bucket to my Compute
+-- End of Notes --
+
+- Databricks connection with AWS
+- Created notebook in Compute to taste connection
+- Debugging connection on Notebook
+- Collecting data on transit
+
+Next steps:
+- Connection between Databricks and S3 for Silver Layer
+- Create cleaning (silver) layer for all 3 datapoints
+
+--------------------------------Week 8--------------------------------
+Tues March 3
+- Debugging Databricks Connection to AWS 
+
+Wed March 4
+- Debugging Databricks Connection to AWS 
+
+Thursday March 5
+- Connection made
+- Debug certain connections to AWS 
+- Start creating silver layer
+
+Friday March 6
+- Start silver layer 
+- Understanding Spark and Databricks 
+
+Sunday March 8
+- Starting on Brozne Ingestion Layer on Databricks 
+- Creating Spark Tables to store data globally in Databricks
+
+Next step:
+- Debug saving the S3 raw files onto Spark Table
+
+--------------------------------Week 9--------------------------------
+Tue March 10
+- Continuing to debug and build bronze layer
+- Start pseudocode for silver layer 
+
+Next steps:
+- Push bronze layer data manually on databricks and start silver layer due to issue with Hadoop
+
+--------------------------------Week 10--------------------------------
+Sat March 21
+- Connecting Databricks with AWS S3 Bucket
+- Databricks is now connected to S3 Buckets
+
+Next Steps:
+- Create tables
+- Create silver layer with Spark
+
+Sun March 22
+- Creating tables for all data
+- Starting Silver Layer on Spark 
+
+Next Steps:
+- Spark Silver Layer for Cleaning
+- Push to Snowflake for Gold Layer
+
+--------------------------------Week 11--------------------------------
+Monday March 23
+- Learning PySpark
+- Notes on PySpark
+- Starting Silver Layer for Vancouver Crime Data
+
+Next Steps:
+- Cleaning rest of bronze raw data
+
+Saturday March 28
+- Finished Silver layer
+- Start to push silver data in Snowflake
+
+--------------------------------Week 12--------------------------------
+Monday March 30
+- Pushed Silver Layer to AWS S3 Bucket
+
+Tuesday March 31
+- AWS S3 Silver Layer to Snowflake Database
+- Create an AI Agent after Gold Layer is complete 
+
+Wednesday April 1
+- Learn about dbt and how to implement inside of this project
+- Fixed up Databricks (Pushed wrong data to AWS S3 and Snowflake)
+- Start on dbt

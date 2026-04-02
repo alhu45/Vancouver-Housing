@@ -1,12 +1,11 @@
 # ==========================================
 # SUMMARY OF WHAT GETS CREATED:
-# ==========================================
-# ✅ 3 S3 buckets: bronze, silver, gold
-# ✅ Versioning enabled on bronze & silver (can recover deleted files)
-# ✅ Lifecycle rule on bronze (auto-archive after 90 days, delete after 365)
-# ✅ IAM user for Airflow with upload permissions
-# ✅ IAM role for Snowflake with read permissions
-# ✅ IAM role for Databricks with read/write permissions
+# 3 S3 buckets: bronze, silver, gold
+# Versioning enabled on bronze & silver (can recover deleted files)
+# Lifecycle rule on bronze (auto-archive after 90 days, delete after 365)
+# IAM user for Airflow with upload permissions
+# IAM role for Snowflake with read permissions
+# IAM role for Databricks with read/write permissions
 # ==========================================
 
 # AWS Resources
@@ -120,9 +119,7 @@ resource "aws_iam_access_key" "airflow" {
   user = aws_iam_user.airflow.name
 }
 
-# ==========================================
-# PART 5: IAM ROLE FOR SNOWFLAKE
-# ==========================================
+# IAM ROLE FOR SNOWFLAKE
 
 data "aws_iam_policy_document" "snowflake_assume_role" {
   statement {
@@ -178,18 +175,20 @@ data "aws_iam_policy_document" "databricks_assume_role" {
   statement {
     effect = "Allow"
     
-    principals {
-      type        = "AWS"
-      identifiers = ["arn:aws:iam::414351767826:root"]
-      # This is Databricks' AWS account ID (standard for all Databricks users)
-    }
+  principals {
+    type = "AWS"
+    identifiers = [
+      "arn:aws:iam::414351767826:role/unity-catalog-prod-UCMasterRole-14S5ZJVKOTYTL",
+      "arn:aws:iam::051826705028:role/vancouver-data-databricks-role"
+    ]
+  }
     
     actions = ["sts:AssumeRole"]
     
     condition {
       test     = "StringEquals"
       variable = "sts:ExternalId"
-      values   = ["databricks-external-id-placeholder"]
+      values   = ["69764e60-5377-4152-ad8f-dab344ff4992"]
       # You'll replace this with actual external ID from Databricks setup
     }
   }
@@ -208,10 +207,16 @@ data "aws_iam_policy_document" "databricks_s3_policy" {
     effect = "Allow"
     
     actions = [
+      "s3:PutObject",
+      "s3:ListBucket",
       "s3:GetObject",
-      "s3:PutObject",      # Write files
-      "s3:DeleteObject",   # Delete files
-      "s3:ListBucket"
+      "s3:DeleteObject",
+      "s3:GetBucketLocation",
+      "s3:ListBucketMultipartUploads",
+      "s3:ListMultipartUploadParts",
+      "s3:AbortMultipartUpload",
+      "s3:GetBucketNotification",   
+      "s3:PutBucketNotification"     
     ]
     
     resources = [
@@ -233,6 +238,55 @@ resource "aws_iam_role_policy" "databricks_s3_access" {
   policy = data.aws_iam_policy_document.databricks_s3_policy.json
 }
 
+# Trust policy for the EC2 role (instance profile role)
+data "aws_iam_policy_document" "ec2_assume_role" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["ec2.amazonaws.com"]
+    }
+  }
+}
+
+# Role B: Role used by the cluster EC2 instances
+resource "aws_iam_role" "databricks_cluster_instance_role" {
+  name               = "${var.project_name}-databricks-cluster-role"
+  assume_role_policy = data.aws_iam_policy_document.ec2_assume_role.json
+  tags               = var.tags
+}
+
+# Attach S3 permissions to the cluster role (you already had this elsewhere)
+resource "aws_iam_role_policy" "databricks_cluster_s3_access" {
+  name   = "${var.project_name}-databricks-cluster-s3-policy"
+  role   = aws_iam_role.databricks_cluster_instance_role.id
+  policy = data.aws_iam_policy_document.databricks_s3_policy.json
+}
+
+# Allow Databricks cross-account role to pass the cluster role to EC2
+data "aws_iam_policy_document" "allow_databricks_passrole" {
+  statement {
+    effect  = "Allow"
+    actions = ["iam:PassRole"]
+    resources = [
+      aws_iam_role.databricks_cluster_instance_role.arn
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "databricks_cross_account_passrole" {
+  name   = "allow-pass-databricks-cluster-role"
+  role   = "databricks-1pbcdwvlvhosormqqukzps-cross-account-role"
+  policy = data.aws_iam_policy_document.allow_databricks_passrole.json
+}
+
+# Instance profile wrapper Databricks needs
+resource "aws_iam_instance_profile" "databricks_cluster_instance_profile" {
+  name = "${var.project_name}-databricks-instance-profile"
+  role = aws_iam_role.databricks_cluster_instance_role.name
+}
 
 
 

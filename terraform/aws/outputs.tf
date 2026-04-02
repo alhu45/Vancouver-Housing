@@ -1,6 +1,5 @@
 # ==========================================
 # HOW TO USE THESE OUTPUTS:
-# ==========================================
 # After running 'terraform apply', you'll see something like:
 #
 # Outputs:
@@ -41,9 +40,7 @@ output "gold_bucket_name" {
   # USE IN: Final analytics output destination
 }
 
-# ==========================================
 # S3 BUCKET ARNs (for IAM policies and permissions)
-# ==========================================
 
 output "bronze_bucket_arn" {
   description = "ARN of the Bronze S3 bucket"
@@ -64,9 +61,7 @@ output "gold_bucket_arn" {
   value       = aws_s3_bucket.gold.arn
 }
 
-# ==========================================
 # IAM ROLE ARNs (for Databricks and Snowflake setup)
-# ==========================================
 
 output "databricks_role_arn" {
   description = "ARN of IAM role for Databricks to access S3"
@@ -87,9 +82,7 @@ output "snowflake_role_arn" {
   # RESULT: Snowflake can read your S3 data
 }
 
-# ==========================================
 # AIRFLOW CREDENTIALS (for API access)
-# ==========================================
 
 output "airflow_access_key_id" {
   description = "Access key ID for Airflow IAM user"
@@ -112,9 +105,7 @@ output "airflow_secret_access_key" {
   # SECURITY: Store in environment variables or secrets manager
 }
 
-# ==========================================
 # AWS REGION (reminder of where resources are)
-# ==========================================
 
 output "aws_region" {
   description = "AWS region where resources were created"
@@ -122,4 +113,8 @@ output "aws_region" {
   
   # DISPLAYS: "ca-central-1"
   # WHY: Good to know for debugging and configuration
+}
+
+output "databricks_instance_profile_arn" {
+  value = aws_iam_instance_profile.databricks_cluster_instance_profile.arn
 }
