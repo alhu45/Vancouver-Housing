@@ -400,3 +400,33 @@ Wednesday April 1
 - Learn about dbt and how to implement inside of this project
 - Fixed up Databricks (Pushed wrong data to AWS S3 and Snowflake)
 - Start on dbt
+
+Thursday April 2
+- dbt building gold layer
+
+--------------------------------Week 13--------------------------------
+Tues April 7
+- Notes on dbt 
+  - CTE
+  - Window Functions
+- Building 4 gold layers for transit in dbt 
+  - Transit Stops Frequency and Importance
+  - Accesiblity of Transit Stops
+  - How often the service occurs within the week and weekend
+  - Route Coverage in each Neighbourhood
+
+Next Steps:
+- Gold Layer for Crime and Housing Data
+- Building final product in Snowflake
+- Create AI/ML Agent with Data Pipeline
+- Apache Airflow in project
+
+--------------------------------Week 14--------------------------------
+- Finshing up Gold Layer on dbt
+- Streamlit app for Project
+
+Next steps:
+- Write notes for the final gold layer and how it works
+- Add Airflow to project
+
+

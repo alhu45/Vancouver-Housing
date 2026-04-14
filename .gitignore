@@ -14,3 +14,7 @@ snowflake_key.p8
 snowflake_key.pub
 
 data
+
+.env
+
+secrets.toml
