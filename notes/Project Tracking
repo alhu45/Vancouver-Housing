@@ -422,11 +422,15 @@ Next Steps:
 - Apache Airflow in project
 
 --------------------------------Week 14--------------------------------
+Tues April 14
 - Finshing up Gold Layer on dbt
 - Streamlit app for Project
 
 Next steps:
 - Write notes for the final gold layer and how it works
+- Review Terraform Code and add notes
+
 - Add Airflow to project
+- Add ML
 
 

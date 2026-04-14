@@ -113,11 +113,11 @@ try:
 except Exception:
     geojson = None
 
-# ── Header ──
+# Header
 st.markdown('<p class="main-title">🏙️ Vancouver Livability Platform</p>', unsafe_allow_html=True)
 st.markdown('<p class="subtitle">Neighbourhood intelligence powered by crime, housing, and transit data</p>', unsafe_allow_html=True)
 
-# ── Sidebar ──
+# Sidebar
 with st.sidebar:
     st.markdown("### 🎛️ Filters")
     score_metric = st.selectbox(
@@ -142,10 +142,10 @@ with st.sidebar:
     *Scores are min-max normalized (0–100). Higher = better livability.*
     """)
 
-# ── Filter ──
+# Filter
 filtered_df = df[df["COMPOSITE_LIVABILITY_SCORE"] >= min_score].copy()
 
-# ── Top Metrics ──
+# Top Metrics
 col1, col2, col3, col4 = st.columns(4)
 
 if filtered_df.empty:
@@ -163,7 +163,7 @@ with col4: st.metric("🏠 Avg Housing Price", f"${avg_housing:,.0f}")
 
 st.markdown("---")
 
-# ── Map + Table ──
+# Map + Table
 map_col, table_col = st.columns([3, 2])
 
 with map_col:
@@ -298,7 +298,7 @@ with table_col:
     </div>
     """, unsafe_allow_html=True)
 
-# ── Pillar Breakdown ──
+# Pillar Breakdown
 st.markdown("---")
 st.markdown('<p class="section-header">Pillar Breakdown by Neighbourhood</p>', unsafe_allow_html=True)
 
@@ -325,7 +325,7 @@ fig_bar.update_layout(
 )
 st.plotly_chart(fig_bar, use_container_width=True)
 
-# ── Deep Dive ──
+# Deep Dive
 st.markdown("---")
 st.markdown('<p class="section-header">Neighbourhood Deep Dive</p>', unsafe_allow_html=True)
 
@@ -368,7 +368,7 @@ if not filtered_df.empty:
 else:
     st.info("Adjust the filter to see neighbourhood details.")
 
-# ── Footer ──
+# Footer
 st.markdown("---")
 st.markdown(
     "<p style='color:#8b949e; font-size:0.8rem; text-align:center;'>"
