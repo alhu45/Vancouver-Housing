@@ -4,6 +4,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import requests
 import json
+import os
 
 st.set_page_config(
     page_title  = "Vancouver Livability Platform",
@@ -95,7 +96,9 @@ def load_geojson() -> dict:
 
 
 def load_demo_data() -> pd.DataFrame:
-    return pd.read_csv("gold-fetch_2026-04-14-1154.csv")
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    csv_path = os.path.join(base_dir, "gold-fetch_2026-04-14-1154.csv")
+    return pd.read_csv(csv_path)
 
 
 try:
